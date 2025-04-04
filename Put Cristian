@@ -1,0 +1,105 @@
+import random
+import csv
+from datetime import datetime, timedelta
+
+def generate_cnp(gender, birth_date, county_code):
+    year = birth_date.year % 100
+    month = birth_date.month
+    day = birth_date.day
+    serial = random.randint(100, 999)
+
+    cnp_base = f"{gender}{year:02}{month:02}{day:02}{county_code:02}{serial}"
+
+    # Calcul cifră de control
+    control_weights = "279146358279"
+    control_sum = sum(int(cnp_base[i]) * int(control_weights[i]) for i in range(12))
+    control_digit = control_sum % 11
+    if control_digit == 10:
+        control_digit = 1
+
+    return cnp_base + str(control_digit)
+
+def generate_random_name():
+    first_names = ["Eliza", "Giulia", "Matei", "Petru", "Aurelian", "Anastasia", "Cristian", "Ioana"]
+    last_names = ["Pop", "Vancea", "Filip", "Bretan", "Zele", "Chindris", "Suciu", "Paul"]
+    return f"{random.choice(first_names)} {random.choice(last_names)}"
+
+def generate_data(num_entries=1000000):
+    counties = list(range(1, 47))  # Coduri de județ
+    start_date = datetime(1960, 1, 1)
+
+    with open("cnp_data.csv", "w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["CNP", "Nume"])
+
+        cnp_dict = {}
+        for _ in range(num_entries):
+            gender = random.choice([1, 2])  # 1 = masculin, 2 = feminin
+            birth_date = start_date + timedelta(days=random.randint(0, 22000))
+            county_code = random.choice(counties)
+            cnp_generated = generate_cnp(gender, birth_date, county_code)
+            name_generated = generate_random_name()
+            writer.writerow([cnp_generated, name_generated])
+            cnp_dict[cnp_generated] = name_generated
+
+    return cnp_dict
+
+def hash_function(cnp, table_size):
+    return int(cnp) % table_size
+
+class HashTable:
+    def __init__(self, size=2000003):
+        self.size = size
+        self.table = [None] * size
+
+    def insert(self, cnp, name):
+        index = hash_function(cnp, self.size)
+        
+        if self.table[index] is None:
+            self.table[index] = []  # Inițializează lista dacă este goală
+        
+        self.table[index].append((cnp, name))
+
+    def search(self, cnp):
+        index = hash_function(cnp, self.size)
+        if self.table[index] is not None:
+            for stored_cnp, stored_name in self.table[index]:
+                if stored_cnp == cnp:
+                    return stored_name
+        return None
+
+def select_random_cnp(cnp_dict, num_samples=1000):
+    return random.sample(list(cnp_dict.keys()), num_samples)
+
+def perform_search_tests(hash_table_instance, test_cnps):
+    total_iterations = 0
+    not_found = 0
+    
+    for cnp_test in test_cnps:
+        index = hash_function(cnp_test, hash_table_instance.size)
+        found = False
+        
+        if hash_table_instance.table[index] is not None:
+            for i, (stored_cnp, _) in enumerate(hash_table_instance.table[index] or []):
+                total_iterations += 1
+                if stored_cnp == cnp_test:
+                    found = True
+                    break
+        
+        if not found:
+            not_found += 1
+    
+    avg_iterations = total_iterations / len(test_cnps) if test_cnps else 0
+    print(f"Iterații totale: {total_iterations}")
+    print(f"Iterații medii per căutare: {avg_iterations:.2f}")
+    print(f"Număr de CNP-uri negăsite: {not_found}")
+
+if __name__ == "__main__":
+    cnp_data = generate_data()
+    hash_table = HashTable()
+    
+    for cnp_key, person_name in cnp_data.items():
+        hash_table.insert(cnp_key, person_name)
+    
+    selected_cnp = select_random_cnp(cnp_data)
+    perform_search_tests(hash_table, selected_cnp)
